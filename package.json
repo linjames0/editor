@@ -1,8 +1,5 @@
 {
   "name": "docs-editor",
   "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "@upstash/redis": "^1.37.0"
-  }
+  "private": true
 }
