@@ -53,6 +53,16 @@ button { font-family: var(--font); cursor: pointer; }
 #home-logo { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
 #home-logo span { color: var(--accent); }
 
+#home-header-right { display: flex; align-items: center; gap: 8px; }
+
+.home-util-btn {
+  background: transparent; border: 1px solid var(--border);
+  border-radius: var(--r); padding: 6px 12px;
+  font-size: 12.5px; font-weight: 500; color: var(--text-2);
+  cursor: pointer; transition: background 0.1s, color 0.1s;
+}
+.home-util-btn:hover { background: var(--border-light); color: var(--text); }
+
 #new-doc-btn {
   display: flex; align-items: center; gap: 7px;
   background: var(--accent); color: white;
@@ -572,11 +582,17 @@ body.dragging-col { cursor: col-resize; user-select: none; }
 <div id="home-view">
   <div id="home-header">
     <div id="home-logo">docs<span>.</span></div>
-    <button id="new-doc-btn" onclick="createDoc()">
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="white"><path d="M8 1v14M1 8h14" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
-      New document
-    </button>
+    <div id="home-header-right">
+      <button class="home-util-btn" onclick="importDocs()" title="Import docs from a backup file">Import</button>
+      <button class="home-util-btn" onclick="exportDocs()" title="Export all docs to a backup file">Export</button>
+      <button id="new-doc-btn" onclick="createDoc()">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="white"><path d="M8 1v14M1 8h14" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+        New document
+      </button>
+    </div>
   </div>
+  <!-- hidden file input for import -->
+  <input type="file" id="import-file-input" accept=".json" style="display:none" onchange="handleImportFile(event)">
   <div id="home-body">
     <div id="home-section-title">Recent</div>
     <div id="docs-grid"></div>
@@ -881,6 +897,53 @@ function renderHome() {
     card.addEventListener('click', () => openDoc(doc.id));
     grid.appendChild(card);
   });
+}
+
+// ============================================================
+// EXPORT / IMPORT
+// ============================================================
+function exportDocs() {
+  const data = { version: 1, exportedAt: new Date().toISOString(), docs };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'docs-backup.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importDocs() {
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('import-file-input').click();
+}
+
+function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      const imported = data.docs || (Array.isArray(data) ? data : null);
+      if (!imported) { showToast('Invalid backup file'); return; }
+      if (!confirm(`Import ${imported.length} document(s)? This will be added to your existing docs.`)) return;
+      // Merge by id — skip any that already exist
+      let added = 0;
+      imported.forEach(d => {
+        if (!docs.find(existing => existing.id === d.id)) {
+          docs.push(d);
+          added++;
+        }
+      });
+      saveDocs();
+      renderDocs();
+      showToast(`Imported ${added} document(s)`);
+    } catch(err) {
+      showToast('Could not read backup file');
+    }
+  };
+  reader.readAsText(file);
 }
 
 function createDoc() {
@@ -1209,17 +1272,38 @@ const FONT_NAMES = {
   humanist: 'Trebuchet MS'
 };
 
+// Full CSS stacks used as the editor's base font (so blank lines inherit correctly)
+const FONT_STACKS = {
+  sans:     '-apple-system, BlinkMacSystemFont, "Arial", sans-serif',
+  serif:    'Georgia, "Times New Roman", serif',
+  garamond: '"EB Garamond", Georgia, serif',
+  courier:  '"Courier New", Courier, monospace',
+  humanist: '"Trebuchet MS", "Gill Sans", Calibri, sans-serif'
+};
+
 function applyFont(key) {
   const name = FONT_NAMES[key];
   if (!name) return;
   editor.focus();
   document.execCommand('fontName', false, name);
+
+  // Also set as the editor's base font so empty paragraphs inherit it
+  const stack = FONT_STACKS[key];
+  editor.style.fontFamily = stack;
+  document.getElementById('page-title').style.fontFamily = stack;
+  try { localStorage.setItem('editor_base_font', key); } catch(e) {}
+
   saveEditorContent();
   updateToolbar();
 }
 
 function loadFont() {
-  // No global font — reset selector to blank/default
+  // Restore the last-used base font so blank lines stay correct on reload
+  const key = localStorage.getItem('editor_base_font');
+  if (key && FONT_STACKS[key]) {
+    editor.style.fontFamily = FONT_STACKS[key];
+    document.getElementById('page-title').style.fontFamily = FONT_STACKS[key];
+  }
   const sel = document.getElementById('font-select');
   if (sel) sel.value = '';
 }
@@ -1769,6 +1853,18 @@ function copyShareUrl() {
   });
 }
 async function shareCurrentPage() {
+  // Sharing only works when deployed to Vercel — not from a local file
+  if (location.protocol === 'file:') {
+    document.getElementById('share-loading').style.display = 'none';
+    document.getElementById('share-url-row').style.display = 'none';
+    document.getElementById('share-note').style.display    = 'none';
+    const errEl = document.getElementById('share-error');
+    errEl.innerHTML = 'Sharing requires the app to be deployed to Vercel.<br><br>Open your Vercel URL in a browser to use this feature.';
+    errEl.style.display = 'block';
+    openShareModal();
+    return;
+  }
+
   saveEditorContent();
 
   const doc = docs.find(d => d.id === activeDocId);
@@ -1804,7 +1900,7 @@ async function shareCurrentPage() {
   } catch (err) {
     document.getElementById('share-loading').style.display  = 'none';
     const errEl = document.getElementById('share-error');
-    errEl.textContent = err.message;
+    errEl.textContent = err.message.includes('fetch') ? 'Could not reach the server. Make sure the app is deployed and the Vercel KV database is connected.' : err.message;
     errEl.style.display = 'block';
   }
 }
