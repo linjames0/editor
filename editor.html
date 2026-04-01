@@ -242,18 +242,7 @@ body.dragging-col { cursor: col-resize; user-select: none; }
 /* ============================
    CHAT PANEL
    ============================ */
-#chat-panel {
-  width: 25vw; min-width: 220px; max-width: 600px;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  display: flex; flex-direction: column;
-  flex-shrink: 0;
-  overflow: hidden;
-  transition: opacity 0.2s;
-}
-#chat-panel.hidden { width: 0 !important; min-width: 0 !important; max-width: 0; opacity: 0; pointer-events: none; }
-.drag-handle + #chat-panel.hidden { display: none; }
-#chat-panel.hidden ~ .drag-handle { display: none; }
+/* #chat-panel sizing now handled by #right-col flex layout above */
 
 #chat-panel-header {
   height: 40px; display: flex; align-items: center; justify-content: space-between;
@@ -446,27 +435,71 @@ body.dragging-col { cursor: col-resize; user-select: none; }
 /* ============================
    COMMENTS LAYER (inside scroll, scrolls with content)
    ============================ */
-#comments-layer {
-  position: absolute;
-  top: 0; bottom: 0;
-  /* width set dynamically by JS */
-  pointer-events: none;
-  overflow: visible;
+/* ============================
+   RIGHT COLUMN (comments + chat)
+   ============================ */
+#right-col {
+  display: flex; flex-direction: column;
+  width: var(--chat-w, 25vw); min-width: 220px; max-width: 600px;
+  border-left: 1px solid var(--border);
+  flex-shrink: 0; overflow: hidden;
   transition: opacity 0.2s;
 }
-#comments-layer.hidden { opacity: 0; pointer-events: none !important; }
+#right-col.hidden { width: 0 !important; min-width: 0 !important; opacity: 0; pointer-events: none; }
+
+/* Comments panel */
+#comments-panel {
+  flex-shrink: 0;
+  height: var(--comments-h, 40%);
+  min-height: 80px;
+  display: flex; flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  transition: height 0.15s;
+}
+#comments-panel.hidden { height: 0 !important; min-height: 0 !important; border-bottom: none; overflow: hidden; }
+#comments-panel-header {
+  height: 36px; display: flex; align-items: center; padding: 0 10px 0 12px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+#comments-panel-label { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; }
+#comments-panel-list {
+  flex: 1; overflow-y: auto; padding: 8px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+#comments-panel-list::-webkit-scrollbar { width: 4px; }
+#comments-panel-list::-webkit-scrollbar-thumb { background: #d4d4d2; border-radius: 99px; }
+
+/* Vertical drag handle (between comments and chat) */
+.drag-handle.vertical {
+  width: 100%; height: 5px; cursor: row-resize;
+  background: transparent; position: relative; z-index: 10;
+  flex-shrink: 0; transition: background 0.15s;
+}
+.drag-handle.vertical:hover, .drag-handle.vertical.dragging { background: var(--accent); opacity: 0.35; }
+body.dragging-row { cursor: row-resize !important; user-select: none; }
+
+/* Chat panel — fills remaining space in right-col */
+#chat-panel {
+  flex: 1; min-height: 0;
+  background: var(--surface);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  transition: opacity 0.2s;
+}
+#chat-panel.hidden { flex: 0 !important; min-height: 0 !important; opacity: 0; pointer-events: none; overflow: hidden; }
 
 .cbox {
-  position: absolute; left: 0; width: calc(100% - 4px);
-  background: white; border: 1px solid #fcd34d; border-left: 3px solid var(--comment-yellow);
+  width: 100%;
+  background: white; border: 1px solid var(--border); border-left: 3px solid #d1d5db;
   border-radius: var(--r); padding: 10px 11px;
-  font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  font-size: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
   pointer-events: all; transition: box-shadow 0.15s, top 0.18s;
   cursor: pointer;
 }
-.cbox:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.10); }
-.cbox.focused { box-shadow: 0 0 0 2px rgba(245,158,11,0.28), 0 4px 14px rgba(0,0,0,0.10); cursor: default; }
-.cbox.orphaned { border-color: #d1d5db; border-left-color: #9ca3af; opacity: 0.7; }
+.cbox:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.08); border-left-color: #9ca3af; }
+.cbox.focused { border-color: #fcd34d; border-left-color: var(--comment-yellow); box-shadow: 0 0 0 2px rgba(245,158,11,0.15), 0 3px 12px rgba(0,0,0,0.08); cursor: default; }
+.cbox.orphaned { border-color: var(--border); border-left-color: #d1d5db; opacity: 0.6; }
 .cbox-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
 .cbox-lbl { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
 .cbox-orphan-tag { font-size: 10px; color: var(--text-3); font-style: italic; }
@@ -693,41 +726,55 @@ body.dragging-col { cursor: col-resize; user-select: none; }
           </div>
           <div id="editor" contenteditable="true" spellcheck="true" data-placeholder="Start writing…"></div>
         </div>
-        <!-- Comments layer lives in wrapper (not scroll) so it's never clipped -->
-        <div id="comments-layer"></div>
       </div>
     </div>
     <div class="drag-handle" id="drag-chat" title="Drag to resize"></div>
 
-    <!-- Chat panel -->
-    <div id="chat-panel">
-      <div id="chat-panel-header">
-        <div id="chat-panel-title"><div class="chat-pulse"></div> Claude</div>
-        <button id="chat-close-btn" onclick="toggleChat()" title="Close chat">×</button>
+    <!-- Right column: comments on top, chat on bottom -->
+    <div id="right-col">
+
+      <!-- Comments panel (top) -->
+      <div id="comments-panel">
+        <div id="comments-panel-header">
+          <span id="comments-panel-label">Comments</span>
+        </div>
+        <div id="comments-panel-list"></div>
       </div>
-      <div id="chat-api-row">
-        <input type="password" id="chat-api-input" placeholder="sk-ant-api03-…" autocomplete="off" />
-        <button id="chat-api-save" onclick="saveApiKey()">Save</button>
-      </div>
-      <div id="chat-context-banner">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#92400e" stroke-width="1.8" stroke-linecap="round"><path d="M1 6h14M1 10h14M6 1v14M10 1v14"/></svg>
-        <span id="chat-context-text">Selected text will be included as context</span>
-        <span id="chat-context-clear" onclick="clearSelectedContext()" title="Clear">×</span>
-      </div>
-      <div id="chat-msgs">
-        <div id="chat-empty-state">
-          <div class="ce-icon">✦</div>
-          <div class="ce-title">Claude has full context</div>
-          <div class="ce-sub">Your entire doc is automatically included. Highlight text for specific context.</div>
+
+      <!-- Vertical drag handle between comments and chat -->
+      <div class="drag-handle vertical" id="drag-vertical" title="Drag to resize"></div>
+
+      <!-- Chat panel (bottom) -->
+      <div id="chat-panel">
+        <div id="chat-panel-header">
+          <div id="chat-panel-title"><div class="chat-pulse"></div> Claude</div>
+          <button id="chat-close-btn" onclick="toggleChat()" title="Close chat">×</button>
+        </div>
+        <div id="chat-api-row">
+          <input type="password" id="chat-api-input" placeholder="sk-ant-api03-…" autocomplete="off" />
+          <button id="chat-api-save" onclick="saveApiKey()">Save</button>
+        </div>
+        <div id="chat-context-banner">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#92400e" stroke-width="1.8" stroke-linecap="round"><path d="M1 6h14M1 10h14M6 1v14M10 1v14"/></svg>
+          <span id="chat-context-text">Selected text will be included as context</span>
+          <span id="chat-context-clear" onclick="clearSelectedContext()" title="Clear">×</span>
+        </div>
+        <div id="chat-msgs">
+          <div id="chat-empty-state">
+            <div class="ce-icon">✦</div>
+            <div class="ce-title">Claude has full context</div>
+            <div class="ce-sub">Your entire doc is automatically included. Highlight text for specific context.</div>
+          </div>
+        </div>
+        <div id="chat-input-area">
+          <textarea id="chat-textarea" rows="1" placeholder="Ask anything…" onkeydown="handleChatKey(event)" oninput="autoResizeChat(this)"></textarea>
+          <button id="chat-send-btn" onclick="sendChat()" title="Send">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="white"><path d="M15.5 8L1 1l3 7-3 7 14.5-7z"/></svg>
+          </button>
         </div>
       </div>
-      <div id="chat-input-area">
-        <textarea id="chat-textarea" rows="1" placeholder="Ask anything…" onkeydown="handleChatKey(event)" oninput="autoResizeChat(this)"></textarea>
-        <button id="chat-send-btn" onclick="sendChat()" title="Send">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="white"><path d="M15.5 8L1 1l3 7-3 7 14.5-7z"/></svg>
-        </button>
-      </div>
-    </div>
+
+    </div><!-- /right-col -->
 
   </div><!-- /doc-body -->
 </div><!-- /doc-view -->
@@ -1030,17 +1077,27 @@ function renderDocView() {
 }
 
 function applySidebarVisibility() {
+  const rightColHidden = !showChat && !showComments;
+
+  // Pages
   document.getElementById('pages-sidebar').classList.toggle('hidden', !showPages);
+  document.getElementById('drag-pages').style.display = showPages ? '' : 'none';
+
+  // Right column — collapses only when both chat AND comments are hidden
+  document.getElementById('right-col').classList.toggle('hidden', rightColHidden);
+  document.getElementById('drag-chat').style.display = rightColHidden ? 'none' : '';
+
+  // Comments panel and vertical drag handle
+  document.getElementById('comments-panel').classList.toggle('hidden', !showComments);
+  document.getElementById('drag-vertical').style.display = (showComments && showChat) ? '' : 'none';
+
+  // Chat panel
   document.getElementById('chat-panel').classList.toggle('hidden', !showChat);
-  document.getElementById('comments-layer').classList.toggle('hidden', !showComments);
+
+  // Header button active states
   document.getElementById('toggle-pages-btn').classList.toggle('active', showPages);
   document.getElementById('toggle-chat-btn').classList.toggle('active', showChat);
   document.getElementById('toggle-comments-btn').classList.toggle('active', showComments);
-  // Show/hide resize handles with their panels
-  const dragPages = document.getElementById('drag-pages');
-  const dragChat  = document.getElementById('drag-chat');
-  if (dragPages) dragPages.style.display = showPages ? '' : 'none';
-  if (dragChat)  dragChat.style.display  = showChat  ? '' : 'none';
 }
 
 function togglePages() {
@@ -1124,11 +1181,7 @@ function openPage(pid) {
   reattachMarkListeners(); // restore click handlers on saved comment marks
   loadFont(); // re-apply selected font after innerHTML wipe
 
-  // Comments — wait one frame so editor has laid out before measuring
-  requestAnimationFrame(() => {
-    updateCommentsLayerX();
-    renderComments(page.comments || []);
-  });
+  renderComments(page.comments || []);
   renderPagesSidebar();
   renderChatMessages();
 }
@@ -1604,19 +1657,24 @@ function buildCommentText(text, id) {
 
 function toggleReadMore(id) {
   const el = document.getElementById('ctext-' + id);
-  if (el) { el.classList.toggle('expanded'); recheckPositions(); }
+  if (el) el.classList.toggle('expanded');
 }
 
-function recheckPositions() {
-  const doc = docs.find(d => d.id === activeDocId);
-  const page = doc && doc.pages.find(p => p.id === activePageId);
-  if (page) positionComments(page.comments || []);
-}
+// No-op kept for compatibility — no longer needed with panel layout
+function recheckPositions() {}
+function positionComments() {}
+function updateCommentsLayerX() {}
 
 function renderComments(comments) {
-  const layer = document.getElementById('comments-layer');
-  layer.innerHTML = '';
-  (comments || []).forEach(c => {
+  const list = document.getElementById('comments-panel-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!comments || !comments.length) return;
+
+  // Sort by position in editor (y value)
+  const sorted = [...comments].sort((a, b) => (a.y || 0) - (b.y || 0));
+
+  sorted.forEach(c => {
     const box = document.createElement('div');
     box.className = 'cbox' + (c.orphaned ? ' orphaned' : '');
     box.id = 'cbox-' + c.id;
@@ -1629,7 +1687,7 @@ function renderComments(comments) {
     box.innerHTML = `
       <div class="cbox-hd">
         <span class="cbox-lbl">Comment ${orphanTag}</span>
-        <span class="cbox-edit" onclick="event.stopPropagation();startEditComment('${c.id}')" title="Edit comment" style="cursor:pointer;font-size:11px;color:var(--text-3);margin-right:4px;padding:1px 4px;border-radius:3px;" onmouseover="this.style.color='var(--text-2)'" onmouseout="this.style.color='var(--text-3)'">Edit</span>
+        <span class="cbox-edit" onclick="event.stopPropagation();startEditComment('${c.id}')" title="Edit" style="cursor:pointer;font-size:11px;color:var(--text-3);margin-right:4px;padding:1px 4px;border-radius:3px;" onmouseover="this.style.color='var(--text-2)'" onmouseout="this.style.color='var(--text-3)'">Edit</span>
         <span class="cbox-del" onclick="event.stopPropagation();deleteComment('${c.id}')">×</span>
       </div>
       ${buildCommentText(c.text, c.id)}
@@ -1641,92 +1699,52 @@ function renderComments(comments) {
         <button class="cbox-reply-send" onclick="submitReply('${c.id}')">↵</button>
       </div>`;
 
-    // Click box body → focus it
     box.addEventListener('click', e => {
       if (!e.target.closest('.cbox-del') && !e.target.closest('.cbox-read-more') && !e.target.closest('.cbox-read-less')) {
         focusComment(c.id);
       }
     });
 
-    layer.appendChild(box);
+    list.appendChild(box);
   });
-  positionComments(comments);
-  updateCommentsLayerX();
-}
-
-function updateCommentsLayerX() {
-  const editorEl  = document.getElementById('editor');
-  const wrapperEl = document.getElementById('editor-wrapper');
-  const layer     = document.getElementById('comments-layer');
-  if (!editorEl || !wrapperEl || !layer) return;
-  const editorRect  = editorEl.getBoundingClientRect();
-  const wrapperRect = wrapperEl.getBoundingClientRect();
-  const left = editorRect.right - wrapperRect.left + 14;
-  const availableW = wrapperEl.clientWidth - left - 8;
-  layer.style.left  = left + 'px';
-  layer.style.width = Math.max(120, availableW) + 'px';
 }
 
 // Reattach click listeners to marks that were loaded from saved HTML
 function reattachMarkListeners() {
   document.querySelectorAll('#editor [data-cid]').forEach(mark => {
-    // Clone to remove any stale listeners, then re-add
-    mark.addEventListener('click', function handler() {
+    mark.addEventListener('click', function() {
       focusComment(this.dataset.cid);
     });
   });
 }
 
-function positionComments(comments) {
-  if (!comments || !comments.length) return;
-  const wrapperEl = document.getElementById('editor-wrapper');
-  const layerEl   = document.getElementById('comments-layer');
-  if (!wrapperEl || !layerEl) return;
-
-  const wrapperRect = wrapperEl.getBoundingClientRect();
-
-  // Natural Y = mark's top relative to wrapper top (accounts for scroll automatically)
-  const items = comments.map(c => {
-    const mark = document.querySelector(`[data-cid="${c.id}"]`);
-    let naturalY = c.y || 0;
-    if (mark) {
-      const markRect = mark.getBoundingClientRect();
-      naturalY = markRect.top - wrapperRect.top;
-    }
-    return { id: c.id, naturalY };
-  }).sort((a, b) => a.naturalY - b.naturalY);
-
-  // Anti-collision: top comments get priority, push others down.
-  // prevBottom starts at -Infinity so comments can scroll fully off the top.
-  const GAP = 10;
-  let prevBottom = -Infinity;
-  items.forEach(item => {
-    const box = document.getElementById('cbox-' + item.id);
-    if (!box) return;
-    const top = Math.max(item.naturalY, prevBottom);
-    box.style.top = top + 'px';
-    prevBottom = top + box.offsetHeight + GAP;
-  });
-}
-
-// Reposition comments on scroll since layer is outside the scroll container
-document.getElementById('editor-scroll').addEventListener('scroll', () => recheckPositions());
-
 function focusComment(id) {
   document.querySelectorAll('.cbox').forEach(b => b.classList.remove('focused'));
   document.querySelectorAll('.c-mark').forEach(m => m.classList.remove('focused'));
+
   const box  = document.getElementById('cbox-' + id);
   const mark = document.querySelector(`[data-cid="${id}"]`);
-  if (box)  { box.classList.add('focused'); }
-  if (mark) { mark.classList.add('focused'); }
-  // Re-position after reply input appears (height change)
-  requestAnimationFrame(() => recheckPositions());
+
+  if (box) {
+    box.classList.add('focused');
+    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  if (mark) {
+    mark.classList.add('focused');
+    // Scroll the editor so the mark sits slightly above vertical center
+    const scroll = document.getElementById('editor-scroll');
+    const markRect   = mark.getBoundingClientRect();
+    const scrollRect = scroll.getBoundingClientRect();
+    const markRelTop = markRect.top - scrollRect.top + scroll.scrollTop;
+    const target = markRelTop - scrollRect.height * 0.38; // 38% from top = slightly above center
+    scroll.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+  }
 }
 
 function unfocusAllComments() {
   document.querySelectorAll('.cbox').forEach(b => b.classList.remove('focused'));
   document.querySelectorAll('.c-mark').forEach(m => m.classList.remove('focused'));
-  recheckPositions();
 }
 
 function deleteComment(id) {
@@ -1829,13 +1847,7 @@ function submitReply(id) {
   if (pg) positionComments(pg.comments);
 }
 
-// Update comments layer X position on resize
-window.addEventListener('resize', () => {
-  updateCommentsLayerX();
-  const doc = docs.find(d => d.id === activeDocId);
-  const page = doc && doc.pages.find(p => p.id === activePageId);
-  if (page) positionComments(page.comments || []);
-});
+// (comments panel is in the right-col now; no layout recalc needed on resize)
 
 // ============================================================
 // SHARE
@@ -1913,51 +1925,66 @@ async function shareCurrentPage() {
 // DRAG-TO-RESIZE
 // ============================================================
 (function() {
-  let dragging = null; // { type: 'pages'|'chat', startX, startW }
+  let dragging = null;
+  // type: 'pages' | 'right' | 'vertical'
+  // pages  → resize pages-sidebar (horizontal)
+  // right  → resize right-col (horizontal)
+  // vertical → resize comments-panel height within right-col
 
-  function onDragStart(type, e) {
+  function onHorizStart(type, e) {
     e.preventDefault();
     const el = type === 'pages'
       ? document.getElementById('pages-sidebar')
-      : document.getElementById('chat-panel');
+      : document.getElementById('right-col');
     dragging = { type, startX: e.clientX, startW: el.offsetWidth };
-    document.getElementById('drag-' + (type === 'pages' ? 'pages' : 'chat')).classList.add('dragging');
+    document.getElementById(type === 'pages' ? 'drag-pages' : 'drag-chat').classList.add('dragging');
     document.body.classList.add('dragging-col');
+  }
+
+  function onVertStart(e) {
+    e.preventDefault();
+    const panel = document.getElementById('comments-panel');
+    dragging = { type: 'vertical', startY: e.clientY, startH: panel.offsetHeight };
+    document.getElementById('drag-vertical').classList.add('dragging');
+    document.body.classList.add('dragging-row');
   }
 
   document.addEventListener('mousemove', e => {
     if (!dragging) return;
-    const delta = e.clientX - dragging.startX;
     if (dragging.type === 'pages') {
       const sidebar = document.getElementById('pages-sidebar');
-      const newW = Math.max(120, Math.min(400, dragging.startW + delta));
-      sidebar.style.width = newW + 'px';
-      // Update comments layer position after resize
-      updateCommentsLayerX();
-      const doc = docs.find(d => d.id === activeDocId);
-      const page = doc && doc.pages.find(p => p.id === activePageId);
-      if (page) positionComments(page.comments || []);
-    } else {
-      const chat = document.getElementById('chat-panel');
-      const newW = Math.max(220, Math.min(600, dragging.startW - delta));
-      chat.style.width = newW + 'px';
-      updateCommentsLayerX();
-      const doc = docs.find(d => d.id === activeDocId);
-      const page = doc && doc.pages.find(p => p.id === activePageId);
-      if (page) positionComments(page.comments || []);
+      sidebar.style.width = Math.max(120, Math.min(400, dragging.startW + (e.clientX - dragging.startX))) + 'px';
+    } else if (dragging.type === 'right') {
+      const rightCol = document.getElementById('right-col');
+      const newW = Math.max(220, Math.min(600, dragging.startW - (e.clientX - dragging.startX)));
+      rightCol.style.width = newW + 'px';
+    } else if (dragging.type === 'vertical') {
+      const panel   = document.getElementById('comments-panel');
+      const rightCol = document.getElementById('right-col');
+      const maxH    = rightCol.offsetHeight - 120; // always leave room for chat
+      const newH    = Math.max(60, Math.min(maxH, dragging.startH + (e.clientY - dragging.startY)));
+      panel.style.height = newH + 'px';
+      try { localStorage.setItem('comments_panel_h', newH); } catch(err) {}
     }
   });
 
   document.addEventListener('mouseup', () => {
     if (!dragging) return;
-    document.getElementById('drag-' + (dragging.type === 'pages' ? 'pages' : 'chat')).classList.remove('dragging');
+    if (dragging.type === 'pages')    document.getElementById('drag-pages').classList.remove('dragging');
+    if (dragging.type === 'right')    document.getElementById('drag-chat').classList.remove('dragging');
+    if (dragging.type === 'vertical') document.getElementById('drag-vertical').classList.remove('dragging');
     document.body.classList.remove('dragging-col');
+    document.body.classList.remove('dragging-row');
     dragging = null;
   });
 
-  // Wire up the handle elements once DOM is ready (they're already in the DOM at this point)
-  document.getElementById('drag-pages').addEventListener('mousedown', e => onDragStart('pages', e));
-  document.getElementById('drag-chat').addEventListener('mousedown', e => onDragStart('chat', e));
+  document.getElementById('drag-pages').addEventListener('mousedown',    e => onHorizStart('pages', e));
+  document.getElementById('drag-chat').addEventListener('mousedown',     e => onHorizStart('right', e));
+  document.getElementById('drag-vertical').addEventListener('mousedown', e => onVertStart(e));
+
+  // Restore saved comments panel height
+  const savedH = localStorage.getItem('comments_panel_h');
+  if (savedH) document.getElementById('comments-panel').style.height = savedH + 'px';
 })();
 
 // ============================================================
