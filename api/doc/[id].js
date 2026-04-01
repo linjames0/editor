@@ -13,8 +13,11 @@ module.exports = async function handler(req, res) {
   const token = process.env.UPSTASH_REDIS_KV_REST_API_TOKEN;
   if (!url || !token) return res.status(500).json({ error: 'Database not configured' });
 
-  const r = await fetch(`${url}/get/doc:${id}`, {
-    headers: { Authorization: `Bearer ${token}` },
+  // Use Upstash pipeline command format: GET key
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(['GET', `doc:${id}`]),
   });
 
   if (!r.ok) return res.status(500).json({ error: 'Fetch failed' });

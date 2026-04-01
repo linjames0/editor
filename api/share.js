@@ -13,14 +13,14 @@ module.exports = async function handler(req, res) {
   const token = process.env.UPSTASH_REDIS_KV_REST_API_TOKEN;
   if (!url || !token) return res.status(500).json({ error: 'Database not configured' });
 
-  const id = Array.from({ length: 12 }, () => Math.random().toString(36)[2]).join('');
+  const id    = Array.from({ length: 12 }, () => Math.random().toString(36)[2]).join('');
   const value = JSON.stringify({ title: title || 'Untitled', content, docTitle: docTitle || '', createdAt: Date.now() });
 
-  // SET key value EX 2592000 (30 days)
-  const r = await fetch(`${url}/set/doc:${id}`, {
+  // Use Upstash pipeline command format: SET key value EX seconds
+  const r = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify([value, 'EX', 2592000]),
+    body: JSON.stringify(['SET', `doc:${id}`, value, 'EX', 2592000]),
   });
 
   if (!r.ok) return res.status(500).json({ error: 'Storage failed' });
