@@ -923,25 +923,29 @@ function handleImportFile(e) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    try {
-      const data = JSON.parse(ev.target.result);
-      const imported = data.docs || (Array.isArray(data) ? data : null);
-      if (!imported) { showToast('Invalid backup file'); return; }
-      if (!confirm(`Import ${imported.length} document(s)? This will be added to your existing docs.`)) return;
-      // Merge by id — skip any that already exist
-      let added = 0;
-      imported.forEach(d => {
-        if (!docs.find(existing => existing.id === d.id)) {
-          docs.push(d);
-          added++;
-        }
-      });
-      saveDocs();
-      renderDocs();
-      showToast(`Imported ${added} document(s)`);
-    } catch(err) {
-      showToast('Could not read backup file');
+    let data;
+    try { data = JSON.parse(ev.target.result); } catch(err) {
+      showToast('Could not read backup file — make sure it is the exported JSON');
+      return;
     }
+    const imported = data.docs || (Array.isArray(data) ? data : null);
+    if (!imported || !imported.length) { showToast('No documents found in backup file'); return; }
+    if (!confirm(`Import ${imported.length} document(s)? They will be added alongside your existing docs.`)) return;
+    // Merge by id — skip duplicates
+    let added = 0;
+    imported.forEach(d => {
+      if (!docs.find(existing => existing.id === d.id)) {
+        docs.push(d);
+        added++;
+      }
+    });
+    // Also restore counters if they're higher in the backup
+    if (data.docIdCounter     > docIdCounter)     docIdCounter     = data.docIdCounter;
+    if (data.pageIdCounter    > pageIdCounter)     pageIdCounter    = data.pageIdCounter;
+    if (data.commentIdCounter > commentIdCounter)  commentIdCounter = data.commentIdCounter;
+    saveState();
+    renderHome();
+    showToast(`Imported ${added} document(s)`);
   };
   reader.readAsText(file);
 }
