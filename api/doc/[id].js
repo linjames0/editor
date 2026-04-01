@@ -9,8 +9,8 @@ module.exports = async function handler(req, res) {
   const { id } = req.query;
   if (!id || !/^[a-z0-9]+$/.test(id)) return res.status(400).json({ error: 'Invalid ID' });
 
-  const url   = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url   = process.env.UPSTASH_REDIS_KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_KV_REST_API_TOKEN;
   if (!url || !token) return res.status(500).json({ error: 'Database not configured' });
 
   const r = await fetch(`${url}/get/doc:${id}`, {
