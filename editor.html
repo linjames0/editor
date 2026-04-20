@@ -889,6 +889,9 @@ let showComments = true;
 let chatMessages = [];
 let apiKey = '';
 let customSystemPrompt = '';
+// Cap on chat turns sent to the API. Full history stays in the UI.
+// 10 messages ≈ 5 user-assistant turns. Tune if conversations feel too short.
+const CHAT_HISTORY_LIMIT = 10;
 let isSending = false;
 let savedSelText = '';   // text selected in editor, held for chat context
 let pendingRange = null;
@@ -2245,11 +2248,17 @@ async function sendChat() {
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-opus-4-6',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4096,
         stream: true,
-        system: getSystemPrompt(),
-        messages: chatMessages
+        // Cache the system prompt (doc context) so repeated turns don't pay full input price.
+        // Ephemeral = 5-minute TTL; refreshes on each cache-hit.
+        system: [
+          { type: 'text', text: getSystemPrompt(), cache_control: { type: 'ephemeral' } }
+        ],
+        // Cap history sent to the API to the last N messages. Full history still lives
+        // in chatMessages for display/persistence.
+        messages: chatMessages.slice(-CHAT_HISTORY_LIMIT)
       })
     });
 
