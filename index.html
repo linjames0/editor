@@ -1736,6 +1736,10 @@ function submitComment() {
     renderComments(page.comments);
   }
   cancelComment();
+  // @claude mention in a new comment → send the thread to chat
+  if (/@claude\b/i.test(text)) {
+    triggerClaudeFromComment(id, text);
+  }
 }
 
 const TRUNCATE_LEN = 110;
@@ -1850,6 +1854,58 @@ function deleteComment(id) {
   if (page) { page.comments = page.comments.filter(c => c.id !== id); saveEditorContent(); renderComments(page.comments); }
 }
 
+// ---- @claude from comments ----
+// Returns the innerText of the nearest block-level element containing the
+// highlighted range for a comment. Falls back to just the highlighted span text.
+function getParagraphForComment(cid) {
+  const mark = document.querySelector(`#editor [data-cid="${cid}"]`);
+  if (!mark) return '';
+  const blockTags = new Set(['P','H1','H2','H3','H4','H5','H6','LI','BLOCKQUOTE','PRE','TD','TH']);
+  let node = mark.parentElement;
+  while (node && node.id !== 'editor' && !blockTags.has(node.tagName)) {
+    node = node.parentElement;
+  }
+  if (!node || node.id === 'editor') node = mark;
+  return (node.innerText || '').trim();
+}
+
+function buildClaudeCommentMessage(cid, triggeringText) {
+  const doc = docs.find(d => d.id === activeDocId);
+  const page = doc && doc.pages.find(p => p.id === activePageId);
+  const comment = page && page.comments.find(c => c.id === cid);
+  if (!comment) return '';
+  const paragraph = getParagraphForComment(cid) || '(no highlighted text found)';
+  const threadLines = [`Original comment: "${comment.text}"`];
+  (comment.replies || []).forEach((r, i) => {
+    threadLines.push(`Reply ${i + 1}: "${r}"`);
+  });
+  const cleaned = triggeringText.replace(/@claude\s*/i, '').trim();
+  return `A @claude mention was made in a document comment thread. Please respond to the request below.
+
+Highlighted paragraph:
+"${paragraph}"
+
+Comment thread:
+${threadLines.join('\n')}
+
+The @claude request: "${cleaned || triggeringText}"`;
+}
+
+function triggerClaudeFromComment(cid, triggeringText) {
+  if (!apiKey) { showToast('No API key — set one in Settings on the home page'); return; }
+  if (isSending) { showToast('Claude is still responding — try again in a moment'); return; }
+  const msg = buildClaudeCommentMessage(cid, triggeringText);
+  if (!msg) return;
+  // Make sure the chat panel is open
+  if (!showChat) toggleChat();
+  const ta = document.getElementById('chat-textarea');
+  if (!ta) return;
+  // Bypass the savedSelText wrapping since we're providing full structured context
+  savedSelText = '';
+  ta.value = msg;
+  sendChat();
+}
+
 function handleReplyKey(e, id) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitReply(id); }
 }
@@ -1940,6 +1996,10 @@ function submitReply(id) {
   // Re-position since box height changed
   const pg = doc.pages.find(p => p.id === activePageId);
   if (pg) positionComments(pg.comments);
+  // @claude mention in a reply → send the full thread to chat
+  if (/@claude\b/i.test(text)) {
+    triggerClaudeFromComment(id, text);
+  }
 }
 
 // (comments panel is in the right-col now; no layout recalc needed on resize)
