@@ -63,6 +63,45 @@ button { font-family: var(--font); cursor: pointer; }
 }
 .home-util-btn:hover { background: var(--border-light); color: var(--text); }
 
+/* Settings modal */
+#settings-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+  display: none; z-index: 999;
+}
+#settings-backdrop.visible { display: block; }
+#settings-modal {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; width: 560px; max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 80px); padding: 24px 26px 20px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.18);
+  display: none; flex-direction: column; gap: 16px;
+  z-index: 1000;
+}
+#settings-modal.visible { display: flex; }
+#settings-modal h2 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.settings-field { display: flex; flex-direction: column; gap: 6px; }
+.settings-field label { font-size: 12px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em; }
+.settings-field .hint { font-size: 11.5px; color: var(--text-3); margin-top: -2px; }
+.settings-input, .settings-textarea {
+  width: 100%; font-family: var(--font); font-size: 13px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 7px; padding: 9px 11px; outline: none;
+  transition: border-color 0.12s, background 0.12s;
+}
+.settings-input:focus, .settings-textarea:focus { border-color: var(--accent); background: var(--surface); }
+.settings-textarea { resize: vertical; min-height: 140px; max-height: 340px; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; overflow-y: auto; }
+#settings-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.settings-btn {
+  border-radius: 7px; padding: 8px 14px; font-size: 13px; font-weight: 500;
+  font-family: var(--font); cursor: pointer; border: 1px solid transparent;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.settings-btn.secondary { background: transparent; border-color: var(--border); color: var(--text-2); }
+.settings-btn.secondary:hover { background: var(--border-light); color: var(--text); }
+.settings-btn.primary { background: var(--accent); color: white; }
+.settings-btn.primary:hover { background: var(--accent-hover); }
+
 #new-doc-btn {
   display: flex; align-items: center; gap: 7px;
   background: var(--accent); color: white;
@@ -616,6 +655,7 @@ body.dragging-row { cursor: row-resize !important; user-select: none; }
   <div id="home-header">
     <div id="home-logo">docs<span>.</span></div>
     <div id="home-header-right">
+      <button class="home-util-btn" onclick="openSettings()" title="API key & system prompt">Settings</button>
       <button class="home-util-btn" onclick="importDocs()" title="Import docs from a backup file">Import</button>
       <button class="home-util-btn" onclick="exportDocs()" title="Export all docs to a backup file">Export</button>
       <button id="new-doc-btn" onclick="createDoc()">
@@ -750,10 +790,6 @@ body.dragging-row { cursor: row-resize !important; user-select: none; }
           <div id="chat-panel-title"><div class="chat-pulse"></div> Claude</div>
           <button id="chat-close-btn" onclick="toggleChat()" title="Close chat">×</button>
         </div>
-        <div id="chat-api-row">
-          <input type="password" id="chat-api-input" placeholder="sk-ant-api03-…" autocomplete="off" />
-          <button id="chat-api-save" onclick="saveApiKey()">Save</button>
-        </div>
         <div id="chat-context-banner">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#92400e" stroke-width="1.8" stroke-linecap="round"><path d="M1 6h14M1 10h14M6 1v14M10 1v14"/></svg>
           <span id="chat-context-text">Selected text will be included as context</span>
@@ -806,6 +842,27 @@ body.dragging-row { cursor: row-resize !important; user-select: none; }
   </div>
 </div>
 
+<!-- Settings modal -->
+<div id="settings-backdrop" onclick="closeSettings()"></div>
+<div id="settings-modal">
+  <h2>Settings</h2>
+  <div class="settings-field">
+    <label for="settings-apikey">Anthropic API Key</label>
+    <input type="password" id="settings-apikey" class="settings-input" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false" />
+    <div class="hint">Stored only in your browser (localStorage). Never sent anywhere except Anthropic.</div>
+  </div>
+  <div class="settings-field">
+    <label for="settings-sysprompt">System Prompt</label>
+    <textarea id="settings-sysprompt" class="settings-textarea" placeholder="Leave blank to use the default writing-assistant prompt." spellcheck="false"></textarea>
+    <div class="hint">Overrides the built-in prompt. Your document's content is still appended as context automatically.</div>
+  </div>
+  <div id="settings-actions">
+    <button class="settings-btn secondary" onclick="resetSystemPrompt()" title="Clear custom system prompt">Reset prompt</button>
+    <button class="settings-btn secondary" onclick="closeSettings()">Cancel</button>
+    <button class="settings-btn primary" onclick="saveSettings()">Save</button>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <!-- Right-click context menu -->
@@ -831,6 +888,7 @@ let showChat = true;
 let showComments = true;
 let chatMessages = [];
 let apiKey = '';
+let customSystemPrompt = '';
 let isSending = false;
 let savedSelText = '';   // text selected in editor, held for chat context
 let pendingRange = null;
@@ -860,37 +918,74 @@ function loadChatHistory(docId) {
   try { return JSON.parse(localStorage.getItem('chat_' + docId) || '[]'); } catch(e) { return []; }
 }
 
-function loadApiKey() {
+function loadSettings() {
   try {
     apiKey = localStorage.getItem('editor_apikey') || '';
-    if (apiKey) document.getElementById('chat-api-input').value = maskKey(apiKey);
+    customSystemPrompt = localStorage.getItem('editor_system_prompt') || '';
   } catch(e) {}
-}
-function saveApiKey() {
-  const val = document.getElementById('chat-api-input').value.trim();
-  if (!val || val.includes('•')) { showToast('Enter a valid API key'); return; }
-  apiKey = val;
-  try { localStorage.setItem('editor_apikey', apiKey); } catch(e) {}
-  document.getElementById('chat-api-input').value = maskKey(apiKey);
-  showToast('API key saved ✓');
 }
 function maskKey(k) { return k ? k.slice(0, 10) + '•'.repeat(14) : ''; }
 
-document.getElementById('chat-api-input').addEventListener('focus', function() {
-  if (this.value.includes('•')) this.value = '';
+function openSettings() {
+  const keyInput = document.getElementById('settings-apikey');
+  const promptInput = document.getElementById('settings-sysprompt');
+  keyInput.value = apiKey ? maskKey(apiKey) : '';
+  keyInput.dataset.dirty = '0';
+  promptInput.value = customSystemPrompt || '';
+  document.getElementById('settings-backdrop').classList.add('visible');
+  document.getElementById('settings-modal').classList.add('visible');
+  setTimeout(() => keyInput.focus(), 50);
+}
+function closeSettings() {
+  document.getElementById('settings-backdrop').classList.remove('visible');
+  document.getElementById('settings-modal').classList.remove('visible');
+}
+function saveSettings() {
+  const keyInput = document.getElementById('settings-apikey');
+  const promptInput = document.getElementById('settings-sysprompt');
+  const keyVal = keyInput.value.trim();
+  // Only update the API key if the user actually typed a new one (not the masked placeholder)
+  if (keyInput.dataset.dirty === '1' && keyVal && !keyVal.includes('•')) {
+    apiKey = keyVal;
+    try { localStorage.setItem('editor_apikey', apiKey); } catch(e) {}
+  } else if (keyInput.dataset.dirty === '1' && !keyVal) {
+    // user cleared the field — remove stored key
+    apiKey = '';
+    try { localStorage.removeItem('editor_apikey'); } catch(e) {}
+  }
+  customSystemPrompt = promptInput.value.trim();
+  try {
+    if (customSystemPrompt) localStorage.setItem('editor_system_prompt', customSystemPrompt);
+    else localStorage.removeItem('editor_system_prompt');
+  } catch(e) {}
+  showToast('Settings saved ✓');
+  closeSettings();
+}
+function resetSystemPrompt() {
+  document.getElementById('settings-sysprompt').value = '';
+}
+
+// Mark the API key field as dirty when the user edits it, and clear mask on focus
+document.getElementById('settings-apikey').addEventListener('focus', function() {
+  if (this.value.includes('•')) { this.value = ''; this.dataset.dirty = '1'; }
 });
-document.getElementById('chat-api-input').addEventListener('blur', function() {
-  if (apiKey && !this.value.includes('•') && this.value !== apiKey) { /* keep typed */ }
-  else if (apiKey && !this.value) this.value = maskKey(apiKey);
+document.getElementById('settings-apikey').addEventListener('input', function() {
+  this.dataset.dirty = '1';
 });
-document.getElementById('chat-api-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveApiKey(); });
+document.getElementById('settings-apikey').addEventListener('keydown', e => {
+  if (e.key === 'Enter') saveSettings();
+  else if (e.key === 'Escape') closeSettings();
+});
+document.getElementById('settings-sysprompt').addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeSettings();
+});
 
 // ============================================================
 // INIT
 // ============================================================
 function init() {
   loadState();
-  loadApiKey();
+  loadSettings();
   loadFont();
   // Load UI prefs
   showChat = localStorage.getItem('showChat') !== 'false';
@@ -2006,6 +2101,14 @@ function getSystemPrompt() {
   const docText = getDocContext();
   const docTitle = (docs.find(d => d.id === activeDocId) || {}).title || 'Untitled document';
 
+  // Document-context footer appended to whichever prompt is active
+  const contextBlock = `\n\n## Document context\nThe user is working on: ${docTitle}\n\n${docText ? `Full document content across all pages:\n\n${docText}` : 'The document has no content yet.'}`;
+
+  // If the user has set a custom system prompt on the homepage, use that instead of the default
+  if (customSystemPrompt && customSystemPrompt.trim()) {
+    return customSystemPrompt.trim() + contextBlock;
+  }
+
   const base = `You are a skilled writing assistant embedded in a personal document editor. You have full context of the user's document.
 
 ## Your role
@@ -2051,7 +2154,7 @@ async function sendChat() {
   const input = document.getElementById('chat-textarea');
   const text = input.value.trim();
   if (!text) return;
-  if (!apiKey) { showToast('No API key found — reload and enter one'); return; }
+  if (!apiKey) { showToast('No API key — set one in Settings on the home page'); return; }
 
   let userContent = text;
   if (savedSelText) {
